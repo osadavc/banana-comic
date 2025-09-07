@@ -1,16 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { verifyPrompt, registerUser } from "@/server/image.action";
 
 const Home = () => {
   const [prompt, setPrompt] = useState("");
   const [email, setEmail] = useState("");
   const [showEmail, setShowEmail] = useState(false);
+  const [hash, setHash] = useState<string>("");
+  const [comicId, setComicId] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [success, setSuccess] = useState(false);
 
-  const handleNext = () => {
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("banana-comic:registration");
+      if (!saved) return;
+      const data = JSON.parse(saved) as {
+        prompt: string;
+        email: string;
+        hash: string;
+        id?: string;
+        success: boolean;
+      };
+      if (data?.success) {
+        setPrompt(data.prompt ?? "");
+        setEmail(data.email ?? "");
+        setHash(data.hash ?? "");
+        if (data.id) setComicId(data.id);
+        setShowEmail(true);
+        setSuccess(true);
+      }
+    } catch {}
+  }, []);
+
+  const handleNext = async () => {
+    setError("");
     if (!prompt.trim()) return;
-    setShowEmail(true);
+
+    if (!showEmail) {
+      setLoading(true);
+      const result = await verifyPrompt(prompt);
+      setLoading(false);
+      if (!result.ok) {
+        setError(result.reason ?? "Prompt cannot be used.");
+        return;
+      }
+      setHash(result.hash);
+      if (result.id) setComicId(result.id);
+      setShowEmail(true);
+      return;
+    }
+
+    // Register
+    if (!email.trim()) return;
+    setLoading(true);
+    const res = await registerUser({ id: comicId, prompt, hash, email });
+    setLoading(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setSuccess(true);
+    try {
+      localStorage.setItem(
+        "banana-comic:registration",
+        JSON.stringify({ prompt, email, hash, id: comicId, success: true })
+      );
+    } catch {}
   };
 
   return (
@@ -34,7 +93,9 @@ const Home = () => {
           className="w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-yellow-400"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+          disabled={success}
         />
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         <AnimatePresence>
           {showEmail && (
@@ -56,6 +117,7 @@ const Home = () => {
                 className="w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-yellow-400"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={success}
               />
             </motion.div>
           )}
@@ -65,12 +127,28 @@ const Home = () => {
           <button
             type="button"
             onClick={handleNext}
-            disabled={!prompt.trim()}
+            disabled={
+              loading || (showEmail ? !email.trim() : !prompt.trim()) || success
+            }
             className="rounded-md bg-yellow-400 px-4 py-2 font-medium text-black disabled:opacity-50"
           >
-            Next
+            {success
+              ? "Registered"
+              : showEmail
+                ? loading
+                  ? "Registering..."
+                  : "Register"
+                : loading
+                  ? "Checking..."
+                  : "Next"}
           </button>
         </div>
+
+        {success && (
+          <div className="mt-6 rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-800">
+            You are registered and will get emails every morning EST.
+          </div>
+        )}
       </div>
     </main>
   );
