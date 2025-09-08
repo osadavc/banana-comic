@@ -75,8 +75,8 @@ const Home = () => {
   return (
     <main className="min-h-screen flex flex-col items-center p-8">
       <div className="w-full max-w-xl">
-        <h1 className="text-3xl font-semibold text-center">Banana Comics</h1>
-        <p className="mt-2 text-center text-sm text-gray-600">
+        <h1 className="text-3xl font-semibold">🍌 Banana Comics</h1>
+        <p className="mt-2 text-sm text-gray-600">
           This generates a comic that gets sent to you every day, and the story
           never ends.
         </p>
@@ -123,7 +123,7 @@ const Home = () => {
           )}
         </AnimatePresence>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-start pt-4">
           <button
             type="button"
             onClick={handleNext}
