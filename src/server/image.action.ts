@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { comics } from "@/lib/db/schema/comics";
 import { and, eq, gte } from "drizzle-orm";
-import { normalizePrompt, hashPrompt } from "@/lib/prompt";
+import { normalizePrompt, hashPrompt, deriveTitle } from "@/lib/prompt";
 import { getClientIp } from "@/lib/request/ip";
 
 const promptValidationSchema = z.object({
@@ -15,6 +15,26 @@ const promptValidationSchema = z.object({
 });
 
 const emailSchema = z.email("Invalid email");
+
+const titleSchema = z.object({
+  title: z.string().min(3).max(80),
+});
+
+const generateTitleFromLLM = async (cleanedPrompt: string) => {
+  try {
+    const { object } = await generateObject({
+      model: openai("gpt-5-nano"),
+      system:
+        "You create a very short, catchy, family-friendly comic strip title in 3-8 words. Do not include quotes or punctuation at the ends.",
+      prompt: `Prompt: ${cleanedPrompt}\nReturn JSON with { title } only.`,
+      schema: titleSchema,
+    });
+    return object.title;
+  } catch {
+    // Fallback to heuristic if LLM is unavailable
+    return deriveTitle(cleanedPrompt);
+  }
+};
 
 export type VerifyResult = {
   ok: boolean;
@@ -53,16 +73,24 @@ export const verifyPrompt = async (prompt: string): Promise<VerifyResult> => {
       const ip = await getClientIp();
       // Upsert-like: If same hash exists, reuse id; else insert
       const existing = await db
-        .select({ id: comics.id })
+        .select({ id: comics.id, title: comics.title })
         .from(comics)
         .where(eq(comics.hash, hash))
         .limit(1);
       if (existing.length > 0) {
         result.id = existing[0].id as string;
+        if (!existing[0].title) {
+          const title = await generateTitleFromLLM(cleaned);
+          await db
+            .update(comics)
+            .set({ title })
+            .where(eq(comics.id, result.id));
+        }
       } else {
+        const title = await generateTitleFromLLM(cleaned);
         const inserted = await db
           .insert(comics)
-          .values({ prompt: cleaned, hash, ip })
+          .values({ prompt: cleaned, hash, ip, title })
           .returning({ id: comics.id });
         result.id = inserted[0].id as string;
       }
@@ -77,16 +105,24 @@ export const verifyPrompt = async (prompt: string): Promise<VerifyResult> => {
     if (ok) {
       const ip = await getClientIp();
       const existing = await db
-        .select({ id: comics.id })
+        .select({ id: comics.id, title: comics.title })
         .from(comics)
         .where(eq(comics.hash, hash))
         .limit(1);
       if (existing.length > 0) {
         result.id = existing[0].id as string;
+        if (!existing[0].title) {
+          const title = await generateTitleFromLLM(cleaned);
+          await db
+            .update(comics)
+            .set({ title })
+            .where(eq(comics.id, result.id));
+        }
       } else {
+        const title = await generateTitleFromLLM(cleaned);
         const inserted = await db
           .insert(comics)
-          .values({ prompt: cleaned, hash, ip })
+          .values({ prompt: cleaned, hash, ip, title })
           .returning({ id: comics.id });
         result.id = inserted[0].id as string;
       }
