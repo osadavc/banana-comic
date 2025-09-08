@@ -52,6 +52,11 @@ const generateFourPanelDirectionText = async (
   seriesPrompt: string,
   previousDirection?: string
 ) => {
+  const startedAt = Date.now();
+  console.log("[episode] directionText:start", {
+    hasPrevious: Boolean(previousDirection),
+    seriesPromptLen: seriesPrompt?.length,
+  });
   const guidance = previousDirection
     ? `Continue the ongoing story. Keep continuity of characters, props, setting, and visual design from the previous episode. Preserve character outfits, hairstyles, proportions, and recurring props. Build a small progression today without introducing style changes.`
     : `Start the story with an opening 4-panel mini beat. Establish the main characters quickly and clearly with distinctive, memorable visual traits that can be kept consistent in future episodes.`;
@@ -74,25 +79,50 @@ const generateFourPanelDirectionText = async (
     .filter(Boolean)
     .join("\n");
 
-  const { text } = await generateText({
-    model: "google/gemini-2.5-flash-lite",
-    messages: [
-      {
-        role: "user",
-        content: [{ type: "text", text: instruction }],
-      },
-    ],
-  });
-
-  return text.trim();
+  try {
+    const { text } = await generateText({
+      model: "google/gemini-2.5-flash-lite",
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: instruction }],
+        },
+      ],
+    });
+    const totalMs = Date.now() - startedAt;
+    console.log("[episode] directionText:ok", {
+      length: text?.length,
+      preview: text?.slice?.(0, 120),
+      totalMs,
+    });
+    return text.trim();
+  } catch (error) {
+    console.error("[episode] directionText:error", error);
+    throw error;
+  }
 };
 
 const fetchUrlAsBase64 = async (url: string) => {
+  const startedAt = Date.now();
+  console.log("[episode] fetchUrlAsBase64:start", { url });
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+  if (!response.ok) {
+    console.error("[episode] fetchUrlAsBase64:httpError", {
+      status: response.status,
+      statusText: response.statusText,
+    });
+    throw new Error(`Failed to fetch file: ${response.status}`);
+  }
   const contentType = response.headers.get("content-type") || "image/png";
   const arrayBuffer = await response.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const totalMs = Date.now() - startedAt;
+  console.log("[episode] fetchUrlAsBase64:ok", {
+    contentType,
+    bytes: arrayBuffer.byteLength,
+    base64Len: base64.length,
+    totalMs,
+  });
   return { base64, mediaType: contentType };
 };
 
@@ -100,6 +130,12 @@ const generateImageWithGemini = async (
   prompt: string,
   previousImage?: { base64: string; mediaType: string }
 ) => {
+  const startedAt = Date.now();
+  console.log("[episode] generateImageWithGemini:start", {
+    promptLen: prompt?.length,
+    hasPrevious: Boolean(previousImage),
+    previousMediaType: previousImage?.mediaType,
+  });
   const content: UserContent = [{ type: "text", text: prompt }];
 
   if (previousImage) {
@@ -114,22 +150,32 @@ const generateImageWithGemini = async (
     });
   }
 
-  const result = await generateText({
-    model: google("gemini-2.5-flash-image-preview"),
-    providerOptions: { google: { responseModalities: ["TEXT", "IMAGE"] } },
-    messages: [
-      {
-        role: "user",
-        content,
-      },
-    ],
-  });
+  let result;
+  try {
+    result = await generateText({
+      model: google("gemini-2.5-flash-image-preview"),
+      providerOptions: { google: { responseModalities: ["TEXT", "IMAGE"] } },
+      messages: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+    });
+  } catch (error) {
+    console.error("[episode] generateImageWithGemini:error", error);
+    throw error;
+  }
 
   const files = result.files || [];
   const imageFile = files.find((candidateFile) =>
     candidateFile.mediaType?.startsWith("image/")
   );
   if (!imageFile) {
+    console.error("[episode] generateImageWithGemini:noImageFile", {
+      filesCount: files.length,
+      mediaTypes: files.map((f) => f.mediaType),
+    });
     throw new Error("Gemini did not return an image file");
   }
 
@@ -140,25 +186,46 @@ const generateImageWithGemini = async (
       ? Buffer.from(imageFile.uint8Array).toString("base64")
       : undefined);
   if (!base64) {
+    console.error("[episode] generateImageWithGemini:missingImageData");
     throw new Error("Gemini image missing data");
   }
 
   const buffer = Buffer.from(base64, "base64");
+  const totalMs = Date.now() - startedAt;
+  console.log("[episode] generateImageWithGemini:ok", {
+    mediaType,
+    bufferBytes: buffer.byteLength,
+    totalMs,
+  });
   return { buffer, mediaType };
 };
 
 const uploadToR2 = async (key: string, buffer: Buffer, contentType: string) => {
+  const startedAt = Date.now();
+  console.log("[episode] uploadToR2:start", {
+    key,
+    contentType,
+    bytes: buffer?.byteLength,
+  });
   const r2Client = createR2Client();
   const { bucketName } = getR2Config();
-  await r2Client.send(
-    new PutObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-    })
-  );
-  return getPublicR2UrlForKey(key);
+  try {
+    await r2Client.send(
+      new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      })
+    );
+  } catch (error) {
+    console.error("[episode] uploadToR2:error", error);
+    throw error;
+  }
+  const url = getPublicR2UrlForKey(key);
+  const totalMs = Date.now() - startedAt;
+  console.log("[episode] uploadToR2:ok", { url, totalMs });
+  return url;
 };
 
 const getAppOrigin = () => {
@@ -173,6 +240,8 @@ const getAppOrigin = () => {
 };
 
 export const createAndSendNextEpisode = async (comicId: string) => {
+  const startedAt = Date.now();
+  console.log("[episode] start createAndSendNextEpisode", { comicId });
   const comicRows = await db
     .select({
       id: comics.id,
@@ -184,25 +253,55 @@ export const createAndSendNextEpisode = async (comicId: string) => {
     .where(eq(comics.id, comicId))
     .limit(1);
   const comic = comicRows[0];
+  console.log("[episode] fetched comic", {
+    found: Boolean(comic),
+    hasEmail: Boolean(comic?.userEmail),
+  });
   if (!comic || !comic.userEmail) {
+    console.error("[episode] missing comic or userEmail", {
+      comicExists: Boolean(comic),
+    });
     throw new Error("Comic or user email not found");
   }
 
   const latestEpisode = await fetchLatestEpisodeForComic(comicId);
+  console.log("[episode] latestEpisode", {
+    exists: Boolean(latestEpisode),
+    hasImage: Boolean(latestEpisode?.imageUrl),
+  });
   const previousDirectionText = latestEpisode?.generationPrompt ?? "";
+  console.log("[episode] generating directionText");
   const directionText = await generateFourPanelDirectionText(
     comic.prompt,
     previousDirectionText || undefined
   );
+  console.log("[episode] generated directionText", {
+    length: directionText?.length,
+    preview: directionText?.slice?.(0, 120),
+  });
   const fullPrompt = buildImagePrompt(comic.prompt, directionText);
+  console.log("[episode] built full image prompt", {
+    length: fullPrompt.length,
+    preview: fullPrompt.slice(0, 120),
+  });
 
   const previousImage = latestEpisode?.imageUrl
     ? await fetchUrlAsBase64(latestEpisode.imageUrl)
     : undefined;
+  console.log("[episode] previousImage prepared", {
+    included: Boolean(previousImage),
+    mediaType: previousImage?.mediaType,
+    base64Len: previousImage?.base64?.length,
+  });
+  console.log("[episode] calling generateImageWithGemini");
   const { buffer, mediaType } = await generateImageWithGemini(
     fullPrompt,
     previousImage
   );
+  console.log("[episode] image generated", {
+    mediaType,
+    bufferBytes: buffer?.byteLength,
+  });
 
   const fileExtension = mediaType.includes("png")
     ? "png"
@@ -210,21 +309,36 @@ export const createAndSendNextEpisode = async (comicId: string) => {
       ? "jpg"
       : "png";
   const objectKey = `comics/${comicId}/${Date.now()}.${fileExtension}`;
+  console.log("[episode] uploading to R2", {
+    objectKey,
+    contentType: mediaType,
+  });
   const imageUrl = await uploadToR2(objectKey, buffer, mediaType);
+  console.log("[episode] uploaded to R2", { imageUrl });
 
+  console.log("[episode] inserting episode row");
   await db.insert(episodes).values({
     comicId,
     imageUrl,
     generationPrompt: directionText,
   });
+  console.log("[episode] episode row inserted");
 
   const episodeCountRows = await db
     .select({ id: episodes.id })
     .from(episodes)
     .where(eq(episodes.comicId, comicId));
   const issueNumber = episodeCountRows.length;
+  console.log("[episode] computed issueNumber", { issueNumber });
 
   const unsubUrl = buildUnsubUrl(comicId, getAppOrigin());
+  console.log("[episode] sending email", {
+    to: comic.userEmail,
+    title: comic.title,
+    issueNumber,
+    imageUrl,
+    unsubUrl,
+  });
   await sendDailyComicEmail({
     to: comic.userEmail as string,
     title: comic.title || "",
@@ -233,6 +347,13 @@ export const createAndSendNextEpisode = async (comicId: string) => {
     unsubUrl,
     date: new Date().toISOString(),
   });
+  console.log("[episode] email sent");
 
+  const totalMs = Date.now() - startedAt;
+  console.log("[episode] done createAndSendNextEpisode", {
+    comicId,
+    issueNumber,
+    totalMs,
+  });
   return { imageUrl, issueNumber };
 };
