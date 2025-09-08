@@ -15,8 +15,9 @@
     "emails:export": "bunx --bun email export -d ./src/emails -o ./emails-dist"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.637.0",
+    "@ai-sdk/google": "^2.0.12",
     "@ai-sdk/openai": "^2.0.24",
+    "@aws-sdk/client-s3": "^3.637.0",
     "@neondatabase/serverless": "^1.0.1",
     "@react-email/components": "^0.5.2",
     "ai": "^5.0.34",

@@ -1,13 +1,13 @@
 "use server";
 
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { comics } from "@/lib/db/schema/comics";
 import { and, eq, gte } from "drizzle-orm";
 import { normalizePrompt, hashPrompt } from "@/lib/prompt";
 import { getClientIp } from "@/lib/request/ip";
+import { createAndSendNextEpisode } from "@/server/episode.action";
 
 const promptValidationSchema = z.object({
   isValid: z.boolean(),
@@ -22,7 +22,7 @@ const titleSchema = z.object({
 
 const generateTitleFromLLM = async (cleanedPrompt: string) => {
   const { object } = await generateObject({
-    model: openai("gpt-5-nano"),
+    model: "google/gemini-2.5-flash",
     system:
       "You create a very short, catchy, family-friendly comic strip title in 3-8 words. Do not include quotes or punctuation at the ends.",
     prompt: `Prompt: ${cleanedPrompt}\nReturn JSON with { title } only.`,
@@ -57,7 +57,7 @@ export const verifyPrompt = async (prompt: string): Promise<VerifyResult> => {
 
   try {
     const { object } = await generateObject({
-      model: openai("gpt-4o-mini"),
+      model: "google/gemini-2.5-flash",
       system:
         "You validate if a short story prompt can be illustrated as a daily, family-friendly comic. Reject illegal, explicit, hateful, or private data requests.",
       prompt: `Prompt: ${cleaned}\nDecide if it can be illustrated daily as a never-ending story arc.`,
@@ -94,7 +94,8 @@ export const verifyPrompt = async (prompt: string): Promise<VerifyResult> => {
       result.reason = object.reason;
     }
     return result;
-  } catch {
+  } catch (error) {
+    console.error("Failed to verify prompt", error);
     return {
       ok: false,
       hash,
@@ -148,6 +149,10 @@ export const registerUser = async (args: {
       .update(comics)
       .set({ userEmail: emailParse.data })
       .where(eq(comics.id, args.id));
+
+    void createAndSendNextEpisode(args.id).catch((error) => {
+      console.error("Failed to send first episode email", error);
+    });
     return { ok: true };
   } catch {
     return { ok: false, error: "Database error while registering." };

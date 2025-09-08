@@ -9,6 +9,7 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   RESEND_FROM_EMAIL: z.email("RESEND_FROM_EMAIL must be a valid email"),
+  UNSUB_SECRET: z.string().min(1, "UNSUB_SECRET is required"),
 });
 
 export type ServerEnv = z.infer<typeof EnvSchema>;
@@ -23,6 +24,7 @@ export const getValidatedServerEnvironment = (): ServerEnv => {
     DATABASE_URL: process.env.DATABASE_URL,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    UNSUB_SECRET: process.env.UNSUB_SECRET,
   });
 
   if (!parsed.success) {
