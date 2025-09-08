@@ -146,7 +146,8 @@ const Home = () => {
 
         {success && (
           <div className="mt-6 rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-800">
-            You are registered and will get emails every morning EST.
+            You&apos;re registered! Your first comic should be in your inbox
+            now. You&apos;ll get one every morning around 8am EST.
           </div>
         )}
       </div>
