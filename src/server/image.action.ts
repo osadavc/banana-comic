@@ -4,7 +4,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { comics } from "@/lib/db/schema/comics";
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, count } from "drizzle-orm";
 import { normalizePrompt, hashPrompt } from "@/lib/prompt";
 import { getClientIp } from "@/lib/request/ip";
 import { createAndSendNextEpisode } from "@/server/episode.action";
@@ -41,13 +41,16 @@ export type VerifyResult = {
 
 // DB-backed per-IP daily limiter using `comics.createdAt`
 const isRateLimitedByDb = async (ip: string) => {
+  // Skip rate limiting for localhost / local dev
+  if (ip === "127.0.0.1" || ip === "::1" || ip === "unknown") return false;
+
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const rows = await db
-    .select({ id: comics.id })
+  const LIMIT_PER_DAY = 5;
+  const [{ total }] = await db
+    .select({ total: count() })
     .from(comics)
-    .where(and(eq(comics.ip, ip), gte(comics.createdAt, oneDayAgo)))
-    .limit(1);
-  return rows.length > 0;
+    .where(and(eq(comics.ip, ip), gte(comics.createdAt, oneDayAgo)));
+  return (total ?? 0) >= LIMIT_PER_DAY;
 };
 
 // Verify a prompt -> persist a pending comic row (hash+prompt+ip) and return id+hash

@@ -1,9 +1,9 @@
-import { integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { comics } from "./comics";
 
 export const episodes = pgTable("episodes", {
-  id: serial("id").primaryKey(),
-  comicId: integer("comic_id")
+  id: uuid("id").primaryKey().defaultRandom(),
+  comicId: uuid("comic_id")
     .notNull()
     .references(() => comics.id, { onDelete: "cascade" }),
   imageUrl: text("image_url").notNull(),

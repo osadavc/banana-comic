@@ -20,7 +20,7 @@ const fetchLatestEpisodeForComic = async (comicId: string) => {
       date: episodes.date,
     })
     .from(episodes)
-    .where(eq(episodes.comicId, parseInt(comicId)))
+    .where(eq(episodes.comicId, comicId))
     .orderBy(desc(episodes.date))
     .limit(1);
 
@@ -39,8 +39,11 @@ const buildImagePrompt = (seriesPrompt: string, fourPanelDirection: string) => {
     "Readable facial expressions, clear poses, and family-friendly tone.",
     "High contrast line art, flat colors, comic inking, no watermark, professional look.",
     "Layout: equal-sized panels with thin gutters; ensure text/visuals fit each panel.",
+    "Include clear speech bubbles with the exact dialog lines provided for each panel.",
+    "Render legible lettering inside bubbles; do not paraphrase or invent text.",
+    "Place bubbles to avoid covering key faces/hands; use standard comic tails toward the speaking character.",
     `Series premise: ${seriesPrompt}`,
-    "Describe and render these panels faithfully:",
+    "Describe and render these panels faithfully. Each panel includes a short DIALOG line to render in a speech bubble:",
     fourPanelDirection,
   ].join("\n");
 };
@@ -55,12 +58,13 @@ const generateFourPanelDirectionText = async (
 
   const instruction = [
     "You write a concise 4-panel plan for a daily, family-friendly comic strip.",
-    "Return just the panel directions as 4 short numbered lines:",
-    "1) Panel 1: ...",
-    "2) Panel 2: ...",
-    "3) Panel 3: ...",
-    "4) Panel 4: ...",
-    "Avoid dialogue quotes; describe visuals and actions succinctly.",
+    "Return exactly 4 short numbered lines. For each panel, provide: VISUAL (brief action/beat) and DIALOG (one short quote to place in a speech bubble).",
+    "Use this format strictly:",
+    '1) Panel 1 — VISUAL: <brief description>. DIALOG: "<short line>"',
+    '2) Panel 2 — VISUAL: <brief description>. DIALOG: "<short line>"',
+    '3) Panel 3 — VISUAL: <brief description>. DIALOG: "<short line>"',
+    '4) Panel 4 — VISUAL: <brief description>. DIALOG: "<short line>"',
+    "Constraints: keep dialog family-friendly, 3–10 words per panel, natural speech, no narration, no sound effects, no emojis.",
     guidance,
     `Series premise: ${seriesPrompt}`,
     previousDirection
@@ -71,7 +75,7 @@ const generateFourPanelDirectionText = async (
     .join("\n");
 
   const { text } = await generateText({
-    model: google("google/gemini-2.5-flash-lite"),
+    model: "google/gemini-2.5-flash-lite",
     messages: [
       {
         role: "user",
@@ -209,7 +213,7 @@ export const createAndSendNextEpisode = async (comicId: string) => {
   const imageUrl = await uploadToR2(objectKey, buffer, mediaType);
 
   await db.insert(episodes).values({
-    comicId: parseInt(comicId),
+    comicId,
     imageUrl,
     generationPrompt: directionText,
   });
@@ -217,7 +221,7 @@ export const createAndSendNextEpisode = async (comicId: string) => {
   const episodeCountRows = await db
     .select({ id: episodes.id })
     .from(episodes)
-    .where(eq(episodes.comicId, parseInt(comicId)));
+    .where(eq(episodes.comicId, comicId));
   const issueNumber = episodeCountRows.length;
 
   const unsubUrl = buildUnsubUrl(comicId, getAppOrigin());
