@@ -21,14 +21,14 @@ type DailyComicStripEmailProps = {
 
 const MAX_WIDTH = 1000;
 
-const styles = {
+const styles: Record<string, React.CSSProperties> = {
   body: {
     backgroundColor: "#ffffff",
     margin: 0,
     padding: "24px",
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif",
-  } as React.CSSProperties,
+  },
   container: {
     margin: "0 auto",
     padding: 0,
@@ -36,56 +36,56 @@ const styles = {
     backgroundColor: "#ffffff",
     borderRadius: 12,
     overflow: "hidden",
-  } as React.CSSProperties,
+  },
   header: {
     padding: "20px 24px",
-    textAlign: "left" as const,
-  } as React.CSSProperties,
+    textAlign: "left",
+  },
   headerText: {
     margin: 0,
     color: "#111827",
     lineHeight: 1.2,
     fontWeight: 700,
     fontSize: 24,
-  } as React.CSSProperties,
+  },
   subHeaderText: {
     margin: "6px 0 0",
     color: "#374151",
     fontStyle: "italic",
     fontSize: 14,
-  } as React.CSSProperties,
+  },
   content: {
     padding: 0,
-    textAlign: "left" as const,
-  } as React.CSSProperties,
+    textAlign: "left",
+  },
   figure: {
     display: "block",
     margin: 0,
-  } as React.CSSProperties,
+  },
   image: {
     display: "block",
     width: "100%",
     maxWidth: `${MAX_WIDTH}px`,
-  } as React.CSSProperties,
+  },
   metaRow: {
     padding: "16px 24px",
-  } as React.CSSProperties,
+  },
   metaText: {
     margin: 0,
     color: "#374151",
     fontSize: 14,
     lineHeight: 1.6,
-  } as React.CSSProperties,
+  },
   footer: {
     padding: "20px 24px",
-    textAlign: "left" as const,
+    textAlign: "left",
     backgroundColor: "#ffffff",
   },
   unsub: {
     color: "#6b7280",
     fontSize: 12,
     textDecoration: "underline",
-  } as React.CSSProperties,
+  },
 };
 
 function formatDate(date?: string) {
@@ -146,7 +146,7 @@ const DailyComicStripEmail = ({
 
           <Section style={styles.footer}>
             <Text style={{ margin: 0, color: "#6b7280", fontSize: 12 }}>
-              You’re receiving this email because you subscribed.
+              You&apos;re receiving this email because you subscribed.
             </Text>
             <Text style={{ margin: "8px 0 0" }}>
               <a href={unsubUrl} style={styles.unsub}>
