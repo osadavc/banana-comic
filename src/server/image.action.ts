@@ -153,7 +153,7 @@ export const registerUser = async (args: {
       .set({ userEmail: emailParse.data })
       .where(eq(comics.id, args.id));
 
-    void createAndSendNextEpisode(args.id).catch((error) => {
+    await createAndSendNextEpisode(args.id).catch((error) => {
       console.error("Failed to send first episode email", error);
     });
     return { ok: true };
